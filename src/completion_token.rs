@@ -1,3 +1,8 @@
+// https://github.com/GWBasic/sync-tokens
+// (c) Andrew Rondeau
+// Apache 2.0 license
+// See https://github.com/GWBasic/sync-tokens/blob/main/LICENSE
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -19,10 +24,9 @@ struct CompletionTokenState {
 	waker: Option<Waker>
 }
 
-// Todo: Split into Completable
-
 /// Future that allows gracefully shutting down the server
 impl CompletionToken {
+	#[allow(dead_code)]
 	pub fn new() -> (CompletionToken, Completable) {
 		let shared_state = Arc::new(Mutex::new(CompletionTokenState {
 			canceled: false,
@@ -41,6 +45,7 @@ impl CompletionToken {
 
 impl Completable {
 	/// Call to shut down the server
+	#[allow(dead_code)]
 	pub fn complete(&self) {
 		let mut shared_state = self.shared_state.lock().unwrap();
 

@@ -1,3 +1,8 @@
+// https://github.com/GWBasic/sync-tokens
+// (c) Andrew Rondeau
+// Apache 2.0 license
+// See https://github.com/GWBasic/sync-tokens/blob/main/LICENSE
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -28,6 +33,7 @@ struct CancelationTokenState {
 
 /// Future that allows gracefully shutting down the server
 impl CancelationToken {
+	#[allow(dead_code)]
 	pub fn new() -> (CancelationToken, Cancelable) {
 		let shared_state = Arc::new(Mutex::new(CancelationTokenState {
 			canceled: false,
@@ -56,6 +62,7 @@ impl CancelationToken {
 }
 
 impl Cancelable {
+	#[allow(dead_code)]
 	pub async fn allow_cancel<TFuture, T>(&self, future: TFuture, canceled_result: T) -> T where
 	TFuture: Future<Output = T> + Unpin {
 		{
@@ -75,6 +82,7 @@ impl Cancelable {
 		}
 	}
 
+	#[allow(dead_code)]
 	pub fn future(&self) -> CancelationTokenFuture {
 		CancelationTokenFuture {
 			shared_state: self.shared_state.clone()
