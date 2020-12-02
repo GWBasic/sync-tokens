@@ -9,27 +9,29 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 #[derive(Debug)]
-pub struct CompletionToken {
-	shared_state: Arc<Mutex<CompletionTokenState>>
+pub struct CompletionToken<T> {
+	shared_state: Arc<Mutex<CompletionTokenState<T>>>
 }
 
 #[derive(Debug)]
-pub struct Completable {
-	shared_state: Arc<Mutex<CompletionTokenState>>
+pub struct Completable<T> {
+	shared_state: Arc<Mutex<CompletionTokenState<T>>>
 }
 
 #[derive(Debug)]
-struct CompletionTokenState {
+struct CompletionTokenState<T> {
 	complete: bool,
+	result: Option<T>,
 	waker: Option<Waker>
 }
 
 /// Future that allows gracefully shutting down the server
-impl CompletionToken {
+impl<T> CompletionToken<T> {
 	#[allow(dead_code)]
-	pub fn new() -> (CompletionToken, Completable) {
+	pub fn new() -> (CompletionToken<T>, Completable<T>) {
 		let shared_state = Arc::new(Mutex::new(CompletionTokenState {
 			complete: false,
+			result: None,
 			waker: None
 		}));
 
@@ -43,28 +45,34 @@ impl CompletionToken {
 	}
 }
 
-impl Completable {
+impl<T> Completable<T> {
 	/// Call to shut down the server
 	#[allow(dead_code)]
-	// TODO: Consider taking an argument to pass as the CompletionToken's output
-	pub fn complete(&self) {
+	pub fn complete(&self, result: T) {
 		let mut shared_state = self.shared_state.lock().unwrap();
 
+		if shared_state.complete {
+			panic!("Completion token is already complete")
+		}
+
 		shared_state.complete = true;
+		shared_state.result = Some(result);
+
 		if let Some(waker) = shared_state.waker.take() {
 			waker.wake()
 		}
 	}
 }
 
-impl Future for CompletionToken {
-	type Output = (); // TODO: Make this configurable
+impl<T> Future for CompletionToken<T> {
+	type Output = T;
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		let mut shared_state = self.shared_state.lock().unwrap();
 
 		if shared_state.complete {
-            Poll::Ready(())
+			let result = shared_state.result.take().expect("result already consumed");
+            Poll::Ready(result)
 		} else {
             shared_state.waker = Some(cx.waker().clone());
             Poll::Pending
@@ -72,7 +80,7 @@ impl Future for CompletionToken {
 	}
 }
 
-impl Clone for CompletionToken {
+impl<T> Clone for CompletionToken<T> {
 	fn clone(&self) -> Self {
 		CompletionToken {
 			shared_state: self.shared_state.clone()
@@ -93,19 +101,19 @@ mod tests {
 	use super::*;
 	use crate::tests::*;
 
-	fn assert_not_completed_no_waker(shared_state: &Arc<Mutex<CompletionTokenState>>) {
+	fn assert_not_completed_no_waker<T>(shared_state: &Arc<Mutex<CompletionTokenState<T>>>) {
 		let shared_state = shared_state.lock().unwrap();
 		assert_eq!(shared_state.complete, false, "Complete should be false at construction");
 		assert_eq!(shared_state.waker.is_none(), true, "Waker should not be set");
 	}
 
-	fn assert_not_completed_waker_set(shared_state: &Arc<Mutex<CompletionTokenState>>) {
+	fn assert_not_completed_waker_set<T>(shared_state: &Arc<Mutex<CompletionTokenState<T>>>) {
 		let shared_state = shared_state.lock().unwrap();
 		assert_eq!(shared_state.complete, false, "Complete should be false");
 		assert_eq!(shared_state.waker.is_some(), true, "Waker should be set");
 	}
 
-	fn assert_completed(shared_state: &Arc<Mutex<CompletionTokenState>>) {
+	fn assert_completed<T>(shared_state: &Arc<Mutex<CompletionTokenState<T>>>) {
 		let shared_state = shared_state.lock().unwrap();
 		assert_eq!(shared_state.complete, true, "Complete should be true");
 		assert_eq!(shared_state.waker.is_none(), true, "Waker should be set");
@@ -130,14 +138,18 @@ mod tests {
 
 		assert_not_completed_waker_set(&shared_state);
 
-		completable.complete();
+		completable.complete("complete");
 
 		assert_completed(&shared_state);
 
 		let pinned_completion_token = Pin::new(&mut completion_token);
 
 		let poll_result = pinned_completion_token.poll(&mut cx);
-		assert_eq!(poll_result.is_ready(), true, "Completion token should be ready");
+
+		match poll_result {
+			Poll::Ready(result) => assert_eq!(result, "complete", "Wrong result"),
+			_ => panic!("Completion token should be ready")
+		}
 
 		assert_completed(&shared_state);
 	}
@@ -155,12 +167,12 @@ mod tests {
 			Either::Right((_, c)) => completion_token = c
 		}
 
-		completable.complete();
+		completable.complete("complete");
 
 		assert_completed(&shared_state);
 
 		match select(completion_token, future::pending::<()>()).await {
-			Either::Left(_) => {},
+			Either::Left((result, _)) => assert_eq!(result, "complete", "Wrong result"),
 			Either::Right(_) => panic!("Cancelation didn't happen")
 		}
 
