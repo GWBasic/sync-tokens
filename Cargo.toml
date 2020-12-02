@@ -10,4 +10,5 @@ edition = "2018"
 futures = "0.*"
 
 [dev-dependencies]
+async-std = { version = "1.7.0", features = ["attributes"] }
 cooked-waker = "4.0.0"

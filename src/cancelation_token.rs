@@ -49,7 +49,6 @@ impl CancelationToken {
 		(cancelation_token, cancelable)
 	}
 
-	/// Call to shut down the server
 	#[allow(dead_code)]
 	pub fn cancel(&self) {
 		let mut shared_state = self.shared_state.lock().unwrap();
@@ -123,6 +122,8 @@ impl Clone for Cancelable {
 
 #[cfg(test)]
 mod tests {
+    use async_std::prelude::*;
+	use futures::future;
 	use std::task::Context;
 
 	use cooked_waker::{Wake, WakeRef, IntoWaker, ViaRawPointer};
@@ -196,7 +197,7 @@ mod tests {
 	}
 
     #[test]
-    fn test_via_future() {
+    fn test_via_poll() {
 
 		let (cancelation_token, cancelable) = CancelationToken::new();
 		let mut future = cancelable.future();
@@ -225,5 +226,55 @@ mod tests {
 		assert_eq!(poll_result.is_ready(), true, "Cancelation token should be ready");
 
 		assert_canceled(&shared_state);
-    }
+	}
+	
+	#[async_std::test]
+	async fn test_via_await() {
+
+		let (cancelation_token, cancelable) = CancelationToken::new();
+		let shared_state = cancelation_token.shared_state.clone();
+
+		assert_not_canceled_no_waker(&shared_state);
+
+		let result_future = future::ready("result");
+		let result = cancelable.allow_cancel(result_future, "canceled").await;
+
+		assert_eq!(result, "result", "Future canceled incorrectly");
+
+		assert_not_canceled_no_waker(&shared_state);
+
+		cancelation_token.cancel();
+
+		assert_canceled(&shared_state);
+
+		let pending_future = future::pending();
+		let result = cancelable.allow_cancel(pending_future, "canceled").await;
+
+		assert_eq!(result, "canceled", "Future not canceled");
+	}
+
+    #[async_std::test]
+    async fn test_via_future() {
+
+		let (cancelation_token, cancelable) = CancelationToken::new();
+		let shared_state = cancelation_token.shared_state.clone();
+
+		assert_not_canceled_no_waker(&shared_state);
+
+		match select(cancelable.future(), future::ready(())).await {
+			Either::Left(_) => panic!("Cancelation token isn't canceled"),
+			Either::Right(_) => {}
+		}
+
+		cancelation_token.cancel();
+
+		assert_canceled(&shared_state);
+
+		match select(cancelable.future(), future::pending::<()>()).await {
+			Either::Left(_) => {},
+			Either::Right(_) => panic!("Cancelation didn't happen")
+		}
+
+		assert_canceled(&shared_state);
+	}
 }
