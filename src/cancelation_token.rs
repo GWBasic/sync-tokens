@@ -120,3 +120,110 @@ impl Clone for Cancelable {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use std::task::Context;
+
+	use cooked_waker::{Wake, WakeRef, IntoWaker, ViaRawPointer};
+
+	use super::*;
+
+	#[derive(Debug, Clone)]
+	struct TestWaker {
+		shared_state: Arc<Mutex<TestWakerState>>
+	}
+
+	#[derive(Debug, Clone)]
+	struct TestWakerState {
+		woke: bool
+	}
+
+	impl TestWaker {
+		fn new() -> TestWaker {
+			TestWaker {
+				shared_state: Arc::new(Mutex::new(TestWakerState {
+					woke: false
+				}))
+			}
+		}
+	}
+
+	impl WakeRef for TestWaker {
+		fn wake_by_ref(&self) {
+			let mut shared_state = self.shared_state.lock().unwrap();
+			shared_state.woke = true;
+		}
+	}
+
+	impl Wake for TestWaker {
+		fn wake(self) {
+			self.wake_by_ref();
+		}
+	}
+
+	impl ViaRawPointer for TestWaker {
+		type Target = ();
+	
+		fn into_raw(self) -> *mut () {
+			let shared_state_ptr = Arc::into_raw(self.shared_state);
+			shared_state_ptr as *mut ()
+		}
+	
+		unsafe fn from_raw(ptr: *mut ()) -> Self {
+			TestWaker {
+				shared_state: Arc::from_raw(ptr as *const std::sync::Mutex<TestWakerState>)
+			}
+		}
+	}
+
+	fn assert_not_canceled_no_waker(shared_state: &Arc<Mutex<CancelationTokenState>>) {
+		let shared_state = shared_state.lock().unwrap();
+		assert_eq!(shared_state.canceled, false, "Canceled should be false at construction");
+		assert_eq!(shared_state.waker.is_none(), true, "Waker should not be set");
+	}
+
+	fn assert_not_canceled_waker_set(shared_state: &Arc<Mutex<CancelationTokenState>>) {
+		let shared_state = shared_state.lock().unwrap();
+		assert_eq!(shared_state.canceled, false, "Canceled should be false");
+		assert_eq!(shared_state.waker.is_some(), true, "Waker should be set");
+	}
+
+	fn assert_canceled(shared_state: &Arc<Mutex<CancelationTokenState>>) {
+		let shared_state = shared_state.lock().unwrap();
+		assert_eq!(shared_state.canceled, true, "Canceled should be true");
+		assert_eq!(shared_state.waker.is_none(), true, "Waker should be set");
+	}
+
+    #[test]
+    fn test_via_future() {
+
+		let (cancelation_token, cancelable) = CancelationToken::new();
+		let mut future = cancelable.future();
+		let pinned_future = Pin::new(&mut future);
+
+		let shared_state = cancelation_token.shared_state.clone();
+
+		assert_not_canceled_no_waker(&shared_state);
+
+		let test_waker = TestWaker::new();
+		let waker = test_waker.clone().into_waker();
+		let mut cx = Context::from_waker(&waker);
+
+		let poll_result = pinned_future.poll(&mut cx);
+		assert_eq!(poll_result.is_pending(), true, "Cancelation token should be pending");
+
+		assert_not_canceled_waker_set(&shared_state);
+
+		cancelation_token.cancel();
+
+		assert_canceled(&shared_state);
+
+		let pinned_future = Pin::new(&mut future);
+
+		let poll_result = pinned_future.poll(&mut cx);
+		assert_eq!(poll_result.is_ready(), true, "Cancelation token should be ready");
+
+		assert_canceled(&shared_state);
+    }
+}
