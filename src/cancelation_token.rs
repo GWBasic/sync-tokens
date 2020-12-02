@@ -126,57 +126,10 @@ mod tests {
 	use futures::future;
 	use std::task::Context;
 
-	use cooked_waker::{Wake, WakeRef, IntoWaker, ViaRawPointer};
+    use cooked_waker::IntoWaker;
 
 	use super::*;
-
-	#[derive(Debug, Clone)]
-	struct TestWaker {
-		shared_state: Arc<Mutex<TestWakerState>>
-	}
-
-	#[derive(Debug, Clone)]
-	struct TestWakerState {
-		woke: bool
-	}
-
-	impl TestWaker {
-		fn new() -> TestWaker {
-			TestWaker {
-				shared_state: Arc::new(Mutex::new(TestWakerState {
-					woke: false
-				}))
-			}
-		}
-	}
-
-	impl WakeRef for TestWaker {
-		fn wake_by_ref(&self) {
-			let mut shared_state = self.shared_state.lock().unwrap();
-			shared_state.woke = true;
-		}
-	}
-
-	impl Wake for TestWaker {
-		fn wake(self) {
-			self.wake_by_ref();
-		}
-	}
-
-	impl ViaRawPointer for TestWaker {
-		type Target = ();
-	
-		fn into_raw(self) -> *mut () {
-			let shared_state_ptr = Arc::into_raw(self.shared_state);
-			shared_state_ptr as *mut ()
-		}
-	
-		unsafe fn from_raw(ptr: *mut ()) -> Self {
-			TestWaker {
-				shared_state: Arc::from_raw(ptr as *const std::sync::Mutex<TestWakerState>)
-			}
-		}
-	}
+	use crate::tests::*;
 
 	fn assert_not_canceled_no_waker(shared_state: &Arc<Mutex<CancelationTokenState>>) {
 		let shared_state = shared_state.lock().unwrap();
@@ -229,7 +182,7 @@ mod tests {
 	}
 	
 	#[async_std::test]
-	async fn test_via_await() {
+	async fn test_via_allow_cancel() {
 
 		let (cancelation_token, cancelable) = CancelationToken::new();
 		let shared_state = cancelation_token.shared_state.clone();
