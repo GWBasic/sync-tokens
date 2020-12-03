@@ -3,8 +3,8 @@
 // Apache 2.0 license
 // See https://github.com/GWBasic/sync-tokens/blob/main/LICENSE
 
-mod cancelation_token;
-mod completion_token;
+pub mod cancelation_token;
+pub mod completion_token;
 
 #[cfg(test)]
 mod tests {
