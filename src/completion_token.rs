@@ -12,8 +12,12 @@ use std::task::{Context, Poll, Waker};
 #[derive(Debug)]
 /// Allows waiting for a task to reach a certain state. When calling await, the task
 /// waits for the corresponding [Completable]'s complete method to be called.
-/// /// 
+/// 
 /// See example at [crate]
+/// 
+/// # Panics
+/// 
+/// A [CompletionToken] will panic if it's awaited multiple times
 pub struct CompletionToken<T> {
 	shared_state: Arc<Mutex<CompletionTokenState<T>>>
 }
@@ -56,6 +60,10 @@ impl<T> CompletionToken<T> {
 
 impl<T> Completable<T> {
 	/// Call to indicate that the operation is complete, and unblock any calls to await on the [CompletionToken]
+	/// 
+	/// # Panics
+	/// 
+	/// Complete will panic if it is called multiple times
 	#[allow(dead_code)]
 	pub fn complete(&self, result: T) {
 		let mut shared_state = self.shared_state.lock().unwrap();
