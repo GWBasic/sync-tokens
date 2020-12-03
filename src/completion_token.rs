@@ -3,7 +3,7 @@
 // Apache 2.0 license
 // See https://github.com/GWBasic/sync-tokens/blob/main/LICENSE
 
-//! Contains structs to assist in waiting for a task to reach a certain state. See [CompletionToken] or [crate] for an example.
+//! Contains structs to assist in waiting for a task to reach a certain state. See [`CompletionToken`](struct.CompletionToken.html) or [`sync-tokens`](../index.html) for an example.
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -11,20 +11,20 @@ use std::task::{Context, Poll, Waker};
 
 #[derive(Debug)]
 /// Allows waiting for a task to reach a certain state. When calling await, the task
-/// waits for the corresponding [Completable]'s complete method to be called.
+/// waits for the corresponding [`Completable`](struct.Completable.html)'s complete method to be called.
 /// 
-/// See example at [crate]
+/// See example at [`sync-tokens`](../index.html)
 /// 
 /// # Panics
 /// 
-/// A [CompletionToken] will panic if it's awaited multiple times
+/// A [`CompletionToken`](struct.CompletionToken.html) will panic if it's awaited multiple times
 pub struct CompletionToken<T> {
 	shared_state: Arc<Mutex<CompletionTokenState<T>>>
 }
 
-/// Allows unblocking a task that called await on a [CompletionToken]
+/// Allows unblocking a task that called await on a [`CompletionToken`](struct.CompletionToken.html)
 /// 
-/// See example at [crate]
+/// See example at [`sync-tokens`](../index.html)
 #[derive(Debug)]
 pub struct Completable<T> {
 	shared_state: Arc<Mutex<CompletionTokenState<T>>>
@@ -40,7 +40,7 @@ struct CompletionTokenState<T> {
 /// Future that allows gracefully shutting down the server
 impl<T> CompletionToken<T> {
 	#[allow(dead_code)]
-	/// Creates a new [CompletionToken] and [Completable]
+	/// Creates a new [`CompletionToken`](struct.CompletionToken.html) and [`Completable`](struct.Completable.html)
 	pub fn new() -> (CompletionToken<T>, Completable<T>) {
 		let shared_state = Arc::new(Mutex::new(CompletionTokenState {
 			complete: false,
@@ -59,7 +59,7 @@ impl<T> CompletionToken<T> {
 }
 
 impl<T> Completable<T> {
-	/// Call to indicate that the operation is complete, and unblock any calls to await on the [CompletionToken]
+	/// Call to indicate that the operation is complete, and unblock any calls to await on the [`CompletionToken`](struct.CompletionToken.html)
 	/// 
 	/// # Panics
 	/// 

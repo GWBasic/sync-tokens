@@ -1,8 +1,14 @@
 [package]
 name = "sync-tokens"
+description = "sync-tokens provides ways to coordinate with running tasks. It provides a way to cleanly cancel a running task, and a way for a running task to communicate when it's ready"
 version = "0.1.0"
 authors = ["Andrew Rondeau <git@andrewrondeau.com>"]
+keywords = ["async", "CompletionToken", "Signal"]
+categories = ["asynchronous"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/GWBasic/sync-tokens"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
