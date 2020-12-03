@@ -3,16 +3,24 @@
 // Apache 2.0 license
 // See https://github.com/GWBasic/sync-tokens/blob/main/LICENSE
 
+//! Contains structs to assist in waiting for a task to reach a certain state. See [CompletionToken] or [crate] for an example.
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 #[derive(Debug)]
+/// Allows waiting for a task to reach a certain state. When calling await, the task
+/// waits for the corresponding [Completable]'s complete method to be called.
+/// /// 
+/// See example at [crate]
 pub struct CompletionToken<T> {
 	shared_state: Arc<Mutex<CompletionTokenState<T>>>
 }
 
+/// Allows unblocking a task that called await on a [CompletionToken]
+/// 
+/// See example at [crate]
 #[derive(Debug)]
 pub struct Completable<T> {
 	shared_state: Arc<Mutex<CompletionTokenState<T>>>
@@ -28,6 +36,7 @@ struct CompletionTokenState<T> {
 /// Future that allows gracefully shutting down the server
 impl<T> CompletionToken<T> {
 	#[allow(dead_code)]
+	/// Creates a new [CompletionToken] and [Completable]
 	pub fn new() -> (CompletionToken<T>, Completable<T>) {
 		let shared_state = Arc::new(Mutex::new(CompletionTokenState {
 			complete: false,
@@ -46,7 +55,7 @@ impl<T> CompletionToken<T> {
 }
 
 impl<T> Completable<T> {
-	/// Call to shut down the server
+	/// Call to indicate that the operation is complete, and unblock any calls to await on the [CompletionToken]
 	#[allow(dead_code)]
 	pub fn complete(&self, result: T) {
 		let mut shared_state = self.shared_state.lock().unwrap();

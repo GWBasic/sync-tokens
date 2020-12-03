@@ -3,6 +3,7 @@
 // Apache 2.0 license
 // See https://github.com/GWBasic/sync-tokens/blob/main/LICENSE
 
+//! Contains structs to assist in canceling ongoing operations. See [CancelationToken] or [crate] for an example.
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -10,16 +11,26 @@ use std::task::{Context, Poll, Waker};
 
 use futures::future::{Either, select};
 
+/// Allows canceling an asynchronous operation. Whoever has a [CancelationToken] can cancel an
+/// operation that uses a [Cancelable]
+/// 
+/// See example at [crate]
 #[derive(Debug)]
 pub struct CancelationToken {
 	shared_state: Arc<Mutex<CancelationTokenState>>
 }
 
+/// Assists in canceling an asynchronous operation. Typically, this struct is kept private and
+/// used with either allow_cancel() or future(). A [CancelationToken] is given to whoever can
+/// cancel operations
+/// 
+/// See example at [crate]
 #[derive(Debug)]
 pub struct Cancelable {
 	shared_state: Arc<Mutex<CancelationTokenState>>
 }
 
+/// Future for use with [Cancelable]
 #[derive(Debug)]
 pub struct CancelationTokenFuture {
 	shared_state: Arc<Mutex<CancelationTokenState>>
@@ -31,9 +42,9 @@ struct CancelationTokenState {
 	waker: Option<Waker>
 }
 
-/// Future that allows gracefully shutting down the server
 impl CancelationToken {
 	#[allow(dead_code)]
+	/// Creates a new [CancelationToken] and [Cancelable]
 	pub fn new() -> (CancelationToken, Cancelable) {
 		let shared_state = Arc::new(Mutex::new(CancelationTokenState {
 			canceled: false,
@@ -49,6 +60,7 @@ impl CancelationToken {
 		(cancelation_token, cancelable)
 	}
 
+	/// Cancels the operation. This can be called multiple times safely
 	#[allow(dead_code)]
 	pub fn cancel(&self) {
 		let mut shared_state = self.shared_state.lock().unwrap();
@@ -61,6 +73,9 @@ impl CancelationToken {
 }
 
 impl Cancelable {
+	/// Allows canceling the future. canceled_result is what's returned when the [CancelationToken]
+	/// is canceled. It is reccomended that the future return a [Result] so that canceled_result
+	/// can be an error
 	#[allow(dead_code)]
 	pub async fn allow_cancel<TFuture, T>(&self, future: TFuture, canceled_result: T) -> T where
 	TFuture: Future<Output = T> + Unpin {
@@ -81,6 +96,8 @@ impl Cancelable {
 		}
 	}
 
+	/// Returns a future that returns once the [CancelationToken] is canceled. Intended for use
+	/// with select
 	#[allow(dead_code)]
 	pub fn future(&self) -> CancelationTokenFuture {
 		CancelationTokenFuture {
